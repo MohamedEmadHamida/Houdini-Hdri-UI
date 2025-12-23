@@ -133,8 +133,7 @@ ENABLE_MULTITHREADING = True
 ## 👤 Author
 
 MohamedEmadHamida  
-3D Artist • Technical Artist • Houdini Tools Developer  
-
+3D Artist • Programmer
 ---
 
 ## 📄 License

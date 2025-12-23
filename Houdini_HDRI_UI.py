@@ -405,7 +405,7 @@ class EXRBrowser(QtWidgets.QWidget):
         if ENABLE_MULTITHREADING:
             self.thread_pool = QtCore.QThreadPool.globalInstance()
             self.thread_pool.setMaxThreadCount(MAX_THREAD_COUNT)
-            print(f"🚀 Multithreading enabled with {MAX_THREAD_COUNT} threads")
+            #print(f"🚀 Multithreading enabled with {MAX_THREAD_COUNT} threads")
         else:
             self.thread_pool = None
 
