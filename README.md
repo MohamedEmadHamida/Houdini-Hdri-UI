@@ -56,6 +56,8 @@ pip install PySide6 numpy OpenImageIO
 ---
 ## 🚀 Usage / Install 
 
+- [![Demo Video](https://img.youtube.com/vi/acKTALoZxMI/0.jpg)](https://youtu.be/acKTALoZxMI)
+
 - ![video](images/Install.mp4)
 
 
