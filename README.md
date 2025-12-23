@@ -19,6 +19,7 @@ instantly as **Environment Lights** inside Houdini with a single click.
 - Subtle card fade-in animation  
 - Optional time-test decorator for performance debugging  
 - Config flags to enable / disable features easily  
+- Auto install for lib needed
 
 > Hover zoom preview is planned but **not fully implemented yet**.
 
@@ -28,7 +29,7 @@ instantly as **Environment Lights** inside Houdini with a single click.
 
 Replace with your actual images:
 
-- images/ui_main.png  
+- ['images/ui_main.png']  
 - images/ui_loaded.png  
 
 ---
