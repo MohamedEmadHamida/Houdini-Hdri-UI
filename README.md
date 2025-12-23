@@ -20,6 +20,7 @@ instantly as **Environment Lights** inside Houdini with a single click.
 - Optional time-test decorator for performance debugging  
 - Config flags to enable / disable features easily  
 - Auto install for lib needed
+- offline version no internet needed
 
 > Hover zoom preview is planned but **not fully implemented yet**.
 
@@ -27,19 +28,16 @@ instantly as **Environment Lights** inside Houdini with a single click.
 
 ## 🖼️ Screenshots
 
-Replace with your actual images:
 
 - ![image](images/ui_main.png)
 - ![image](images/ui_loaded.png)
 
 ---
 
-## 🎥 Demo GIFs
+## 🎥 Demo 
 
-Replace with your demo GIFs:
 
-- gifs/browse.gif  
-- gifs/apply_env.gif  
+- ![video](images/DemoV01.mp4)
 
 ---
 
@@ -56,7 +54,10 @@ Install dependencies:
 pip install PySide6 numpy OpenImageIO
 
 ---
-## 🚀 Usage
+## 🚀 Usage / Install 
+
+- ![video](images/Install.mp4)
+
 
 ### Option 1: Run Inside Houdini (Direct)
 
