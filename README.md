@@ -29,8 +29,8 @@ instantly as **Environment Lights** inside Houdini with a single click.
 
 Replace with your actual images:
 
-- ![image]('images/ui_main.png')  
-- ![image]('images/ui_loaded.png') 
+- ![image](images/ui_main.png)
+- ![image](images/ui_loaded.png)
 
 ---
 
