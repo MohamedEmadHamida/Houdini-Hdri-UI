@@ -37,7 +37,7 @@ instantly as **Environment Lights** inside Houdini with a single click.
 ## 🎥 Demo 
 
 
-- ![![Demo Video](https://img.youtube.com/vi/acKTALoZxMI/3.jpg)](https://youtu.be/acKTALoZxMI)
+- [![Demo Video](https://img.youtube.com/vi/acKTALoZxMI/3.jpg)](https://youtu.be/acKTALoZxMI)
 
 
 ---
@@ -58,7 +58,7 @@ pip install PySide6 numpy OpenImageIO
 ## 🚀 Usage / Install 
 
 - 
--![![install Video](https://www.youtube.com/watch?v=Lu9vJuhpFS4/3.jpg)](https://www.youtube.com/watch?v=Lu9vJuhpFS4)
+-[![install Video](https://www.youtube.com/watch?v=Lu9vJuhpFS4/3.jpg)](https://www.youtube.com/watch?v=Lu9vJuhpFS4)
 
 
 
