@@ -36,9 +36,13 @@ instantly as **Environment Lights** inside Houdini with a single click.
 
 ## 🎥 Demo 
 
-<a href="https://youtu.be/acKTALoZxMI">
-  <img src="https://img.youtube.com/vi/acKTALoZxMI/3.jpg" width="600">
-</a>
+<iframe width="800" height="450"
+    src="https://www.youtube.com/embed/acKTALoZxMI"
+    title="Demo Video"
+    frameborder="3"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen>
+</iframe>
 
 ---
 
