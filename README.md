@@ -33,12 +33,9 @@ instantly as **Environment Lights** inside Houdini with a single click.
 - ![image](images/ui_loaded.png)
 
 ---
+## 🎥 Demo Video
 
-## 🎥 Demo Link
-
-<a href="https://youtu.be/acKTALoZxMI">
-  <img src="images/ui_loaded.png" width="800">
-</a>
+[![Demo Video](images/ui_loaded.png)](https://youtu.be/acKTALoZxMI)
 
 ---
 
