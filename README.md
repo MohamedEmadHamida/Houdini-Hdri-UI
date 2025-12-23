@@ -36,7 +36,7 @@ instantly as **Environment Lights** inside Houdini with a single click.
 ## 🎥 Demo 
 
 
-- ![Demo](DemoV01.gif)
+- ![Demo](images/DemoV01.gif)
 
 ---
 
