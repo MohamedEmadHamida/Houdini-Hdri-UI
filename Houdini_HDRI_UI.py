@@ -50,26 +50,30 @@ ENABLE_ENV_LIGHT_CLICK = 1
 ENABLE_TOOLTIPS = 1
 ENABLE_TIME_TEST = 0
 ENABLE_MULTITHREADING = True
+# ==================================================
+
 import os
+import sys
+import time
+import subprocess
 
 MAX_THREAD_COUNT = max(1, os.cpu_count() // 2)
-
 ##MAX_THREAD_COUNT = 4
-
 
 # ==================================================
 # Safe Imports
 # ==================================================
 
-import sys
-import time
+import numpy as np
+from PySide6 import QtWidgets, QtGui, QtCore
 
+# Install OpenImageIO if not present
 try:
-    import numpy as np
     import OpenImageIO as oiio
-    from PySide6 import QtWidgets, QtGui, QtCore
-except ImportError as e:
-    raise RuntimeError(f"Missing dependency: {e}")
+except ImportError:
+    print("OpenImageIO not found. Installing...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "OpenImageIO"])
+    import OpenImageIO as oiio
 
 # Houdini import (optional)
 if ENABLE_HOUDINI:
