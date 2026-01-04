@@ -337,7 +337,7 @@ class ClickableLabel(QtWidgets.QLabel):
         )
 
         if env is None:
-            env = obj.createNode("envlight", "EXR_Environment_Light")
+            env = obj.createNode("envlight", "HDRI_Environment_Light")
             env.moveToGoodPosition()
 
         parm = env.parm("env_map")
@@ -397,7 +397,7 @@ class EXRBrowser(QtWidgets.QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("EXR Browser")
+        self.setWindowTitle("HDRI Browser")
         self.resize(1300, 700)
 
         self.last_folder_file = os.path.join(
@@ -484,7 +484,7 @@ class EXRBrowser(QtWidgets.QWidget):
 # ==================================================
 
     def _build_header(self, parent):
-        header = QtWidgets.QLabel("EXR Image Browser")
+        header = QtWidgets.QLabel("HDRI Image Browser")
         header.setStyleSheet(
             "font-size: 18pt; font-weight: bold; color: #0078d4; margin-bottom: 10px;"
         )
@@ -564,7 +564,7 @@ class EXRBrowser(QtWidgets.QWidget):
     def browse(self):
         folder = QtWidgets.QFileDialog.getExistingDirectory(
             self,
-            "Select Folder Containing EXR Files",
+            "Select Folder Containing HDRI Files",
             "",
             QtWidgets.QFileDialog.ShowDirsOnly
         )
@@ -613,10 +613,10 @@ class EXRBrowser(QtWidgets.QWidget):
             return
 
         self.clear()
-        files = [f for f in os.listdir(folder) if f.lower().endswith(".exr")]
+        files = [f for f in os.listdir(folder) if f.lower().endswith((".exr", ".hdr"))]
 
         if not files:
-            self.count_label.setText("No EXR files found")
+            self.count_label.setText("No HDRI files found")
             self.count_label.setStyleSheet("color: #ff9800; font-style: italic;")
             return
 
@@ -624,7 +624,7 @@ class EXRBrowser(QtWidgets.QWidget):
         self.loaded_count = 0
         
         self.count_label.setText(
-            f"Loading 0/{self.total_count} EXR files..."
+            f"Loading 0/{self.total_count} HDRI files..."
         )
         self.count_label.setStyleSheet(
             "color: #ffa500; font-style: italic; font-weight: bold;"
@@ -803,14 +803,14 @@ class EXRBrowser(QtWidgets.QWidget):
         """Update loading progress in count label"""
         if self.loaded_count >= self.total_count:
             self.count_label.setText(
-                f"✓ Loaded {self.total_count} EXR file{'s' if self.total_count != 1 else ''}"
+                f"✓ Loaded {self.total_count} HDRI file{'s' if self.total_count != 1 else ''}"
             )
             self.count_label.setStyleSheet(
                 "color: #4caf50; font-style: italic; font-weight: bold;"
             )
         else:
             self.count_label.setText(
-                f"Loading {self.loaded_count}/{self.total_count} EXR files..."
+                f"Loading {self.loaded_count}/{self.total_count} HDRI files..."
             )
 
     @time_test
