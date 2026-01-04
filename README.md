@@ -1,4 +1,4 @@
-# EXR Browser for Houdini
+# EXR Browser for Houdini V1.2
 
 A modern, fast, and artist-friendly **EXR / HDRI browser** built with **Python + PySide6**,  
 designed specifically for **SideFX Houdini** users.
@@ -136,7 +136,7 @@ ENABLE_MULTITHREADING = True
 ## 👤 Author
 
 MohamedEmadHamida  
-3D Artist • Programmer
+Mohamed Qatary
 ---
 
 ## 📄 License
