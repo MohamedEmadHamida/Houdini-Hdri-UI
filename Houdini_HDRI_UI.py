@@ -502,13 +502,13 @@ class EXRBrowser(QtWidgets.QWidget):
         about_button = QtWidgets.QPushButton("About")
         about_button.setToolTip("About / Help")
         about_button.setCursor(QtCore.Qt.PointingHandCursor)
-        about_button.setFixedSize(80, 30)
+        about_button.setFixedSize(90, 30)
 
         about_button.setStyleSheet("""
             QPushButton {
                 background: #0078d4;
                 border: none;
-                border-radius: 6px;
+                border-radius: 4px;
                 padding: 8px 20px;
                 color: white;
                 font-weight: bold;
