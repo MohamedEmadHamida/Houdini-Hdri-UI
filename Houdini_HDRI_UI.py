@@ -3,7 +3,7 @@ This is the main UI script for the EXR Browser application.
 It provides a modern dark-themed interface for browsing EXR images,
 loading thumbnails in parallel, and applying them as environment lights in Houdini.
 
-version: 1.3 
+version: 1.2 
 main features:
 - Modern dark theme with custom styles
 - Path bar for selecting folders
@@ -484,15 +484,82 @@ class EXRBrowser(QtWidgets.QWidget):
 # ==================================================
 
     def _build_header(self, parent):
+        header_layout = QtWidgets.QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 8)
+        header_layout.setSpacing(8)
+
+        # Title
         header = QtWidgets.QLabel("HDRI Image Browser")
-        header.setStyleSheet(
-            "font-size: 18pt; font-weight: bold; color: #0078d4; margin-bottom: 10px;"
-        )
-        parent.addWidget(header)
+        header.setStyleSheet("""
+         QLabel {
+                font-size: 18pt;
+            font-weight: 600;
+            color: #0078d4;
+        }
+         """)
+
+    # Help / About button
+        about_button = QtWidgets.QPushButton("About")
+        about_button.setToolTip("About / Help")
+        about_button.setCursor(QtCore.Qt.PointingHandCursor)
+        about_button.setFixedSize(80, 30)
+
+        about_button.setStyleSheet("""
+            QPushButton {
+                background: #0078d4;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 20px;
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #1084d8;
+            }
+            QPushButton:pressed {
+                background: #006cc1;
+            }
+            """)
+
+        about_button.clicked.connect(self._show_about)
+
+        header_layout.addWidget(header)
+        header_layout.addStretch()
+        header_layout.addWidget(about_button)
+
+        parent.addLayout(header_layout)
 
 
 # ==================================================
 # End Of Header UI
+# ==================================================
+
+
+# ==================================================
+# About Dialog
+# ==================================================
+
+    def _show_about(self):
+        about_text = """
+HDRI Image Browser
+Version V1.2
+
+Created by:
+👤 Author
+MohamedEmadHamida
+Mohamed Qatary
+
+Contact:
+ArtStation / GitHub / Email
+mohamedemadhamida@gmail.com
+https://github.com/MohamedEmadHamida
+        """
+        
+        QtWidgets.QMessageBox.about(self, "About", about_text)
+
+
+# ==================================================
+# End Of About Dialog
 # ==================================================
 
 
