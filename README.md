@@ -141,5 +141,13 @@ Mohamed Qatary
 
 ## 📄 License
 
-This project is provided **as-is** for learning and production use.  
-You are free to modify and extend it for personal or studio workflows.
+HDRI Image Browser
+Version 1.2
+
+© 2026 Mohamed Emad ElDin Mostafa 
+
+This software is licensed under the MIT License.
+You are free to use, modify, and distribute this tool,
+provided that the original copyright notice is included.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
