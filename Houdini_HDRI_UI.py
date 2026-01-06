@@ -553,6 +553,9 @@ Contact:
 ArtStation / GitHub / Email
 mohamedemadhamida@gmail.com
 https://github.com/MohamedEmadHamida
+
+Built with passion for the Houdini community 🤍
+   🙏Don't forget to keep us in your duaa 🙏
         """
         
         msg_box = QtWidgets.QMessageBox(self)
