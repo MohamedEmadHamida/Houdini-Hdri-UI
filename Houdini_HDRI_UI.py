@@ -555,7 +555,12 @@ mohamedemadhamida@gmail.com
 https://github.com/MohamedEmadHamida
         """
         
-        QtWidgets.QMessageBox.about(self, "About", about_text)
+        msg_box = QtWidgets.QMessageBox(self)
+        msg_box.setWindowTitle("About")
+        msg_box.setText(about_text.strip())
+        msg_box.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg_box.exec()
 
 
 # ==================================================
