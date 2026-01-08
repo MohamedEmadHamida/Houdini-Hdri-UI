@@ -3,7 +3,7 @@ This is the main UI script for the EXR Browser application.
 It provides a modern dark-themed interface for browsing EXR images,
 loading thumbnails in parallel, and applying them as environment lights in Houdini.
 
-version: 1.2 
+version: 1.3
 main features:
 - Modern dark theme with custom styles
 - Path bar for selecting folders
@@ -14,7 +14,7 @@ main features:
 - Hover zoom preview for thumbnails ** not working yet **
 - Time test decorator for performance measurement
 - Config flags for enabling/disabling features
-
+- Rotation and intensity sliders for HDRI adjustment in Houdini
 Dependencies:
 
 - PySide6
@@ -471,6 +471,7 @@ class EXRBrowser(QtWidgets.QWidget):
 
         self._build_header(main_layout)
         self._build_path_bar(main_layout)
+        self._build_controls(main_layout)
         self._build_scroll(main_layout)
 
 
@@ -607,6 +608,151 @@ Built with passion for the Houdini community 🤍
 
 
 # ==================================================
+# Controls UI
+# ==================================================
+
+    def _build_controls(self, parent):
+        controls_layout = QtWidgets.QHBoxLayout()
+        controls_layout.setContentsMargins(0, 0, 0, 15)
+        controls_layout.setSpacing(40)
+
+        # HDRI Rotation Slider (Left)
+        location_layout = QtWidgets.QVBoxLayout()
+        location_layout.setSpacing(6)
+
+        location_label = QtWidgets.QLabel("HDRI Rotation")
+        location_label.setStyleSheet("""
+            font-weight: bold; 
+            color: #0078d4;
+            font-size: 10pt;
+        """)
+
+        self.location_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.location_slider.setRange(-360, 360)
+        self.location_slider.setValue(0)
+        self.location_slider.setMinimumHeight(20)
+        self.location_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #555;
+                height: 6px;
+                background: #333;
+                margin: 2px 0;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #0078d4;
+                border: 2px solid #005a9e;
+                width: 16px;
+                margin: -3px 0;
+                border-radius: 8px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #1084d8;
+            }
+            QSlider::sub-page:horizontal {
+                background: #0078d4;
+                border-radius: 3px;
+            }
+            QSlider::add-page:horizontal {
+                background: #333;
+                border-radius: 3px;
+            }
+        """)
+
+        self.location_value_label = QtWidgets.QLabel("0°")
+        self.location_value_label.setStyleSheet("""
+            color: #ccc; 
+            font-size: 9pt;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 1px 6px;
+            min-width: 35px;
+        """)
+        self.location_value_label.setAlignment(QtCore.Qt.AlignCenter)
+
+        self.location_slider.valueChanged.connect(self.on_location_changed)
+
+        location_layout.addWidget(location_label)
+        location_layout.addWidget(self.location_slider)
+        location_layout.addWidget(self.location_value_label, alignment=QtCore.Qt.AlignCenter)
+
+        # HDRI Intensity Slider (Right)
+        intensity_layout = QtWidgets.QVBoxLayout()
+        intensity_layout.setSpacing(6)
+
+        intensity_label = QtWidgets.QLabel("HDRI Intensity")
+        intensity_label.setStyleSheet("""
+            font-weight: bold; 
+            color: #0078d4;
+            font-size: 10pt;
+        """)
+
+        self.intensity_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal) 
+        self.intensity_slider.setRange(0, 100)
+        self.intensity_slider.setValue(10)  # 10 = 1.0
+        self.intensity_slider.setSingleStep(1)
+        self.intensity_slider.setMinimumHeight(20)
+        self.intensity_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #555;
+                height: 6px;
+                background: #333;
+                margin: 2px 0;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #0078d4;
+                border: 2px solid #005a9e;
+                width: 16px;
+                margin: -3px 0;
+                border-radius: 8px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #1084d8;
+            }
+            QSlider::sub-page:horizontal {
+                background: #0078d4;
+                border-radius: 3px;
+            }
+            QSlider::add-page:horizontal {
+                background: #333;
+                border-radius: 3px;
+            }
+        """)
+
+        self.intensity_value_label = QtWidgets.QLabel("1.0")
+        self.intensity_value_label.setStyleSheet("""
+            color: #ccc; 
+            font-size: 9pt;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 1px 6px;
+            min-width: 35px;
+        """)
+        self.intensity_value_label.setAlignment(QtCore.Qt.AlignCenter)
+
+        self.intensity_slider.valueChanged.connect(self.on_intensity_changed)
+
+        intensity_layout.addWidget(intensity_label)
+        intensity_layout.addWidget(self.intensity_slider)
+        intensity_layout.addWidget(self.intensity_value_label, alignment=QtCore.Qt.AlignCenter)
+
+        # Add to layout: Rotation on left, Intensity on right
+        controls_layout.addLayout(location_layout)
+        controls_layout.addStretch()
+        controls_layout.addLayout(intensity_layout)
+
+        parent.addLayout(controls_layout)
+
+
+# ==================================================
+# End Of Controls UI
+# ==================================================
+
+
+# ==================================================
 # Scroll Area UI
 # ==================================================
 
@@ -624,6 +770,63 @@ Built with passion for the Houdini community 🤍
 
         scroll.setWidget(self.container)
         parent.addWidget(scroll)
+
+
+# ==================================================
+# Slider Logic Methods
+# ==================================================
+
+    def on_intensity_changed(self, value):
+        """Handle intensity slider value changes"""
+        # Update the value label
+        self.intensity_value_label.setText(f"{value}.0")
+        
+        # Apply intensity to Houdini environment light
+        if ENABLE_HOUDINI:
+            try:
+                obj = hou.node("/obj")
+                if obj:
+                    env = next(
+                        (n for n in obj.children() if n.type().name() == "envlight"),
+                        None
+                    )
+                    
+                    if env:
+                        # Convert slider value (0-10) to intensity multiplier (0.0-2.0)
+                        intensity_value = value / 5.0  # 1 = 0.2, 5 = 1.0, 10 = 2.0
+                        intensity_parm = env.parm("light_intensity")
+                        if intensity_parm:
+                            intensity_parm.set(intensity_value)
+            except Exception as e:
+                print(f"Error setting light intensity: {e}")
+
+    def on_location_changed(self, value):
+        """Handle location slider value changes"""
+        # Update the value label
+        self.location_value_label.setText(f"{value}°")
+        
+        # Apply rotation to Houdini environment light
+        if ENABLE_HOUDINI:
+            try:
+                obj = hou.node("/obj")
+                if obj:
+                    env = next(
+                        (n for n in obj.children() if n.type().name() == "envlight"),
+                        None
+                    )
+                    
+                    if env:
+                        # Set rotation around Y axis (common for HDRI positioning)
+                        ry_parm = env.parm("ry")
+                        if ry_parm:
+                            ry_parm.set(value)
+            except Exception as e:
+                print(f"Error setting light rotation: {e}")
+
+
+# ==================================================
+# End Of Slider Logic Methods
+# ==================================================
 
 
 # ==================================================

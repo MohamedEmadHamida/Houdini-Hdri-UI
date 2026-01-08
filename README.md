@@ -1,4 +1,4 @@
-# EXR Browser for Houdini V1.2
+# EXR Browser for Houdini V1.3
 
 A modern, fast, and artist-friendly **EXR / HDRI browser** built with **Python + PySide6**,  
 designed specifically for **SideFX Houdini** users.
@@ -21,6 +21,7 @@ instantly as **Environment Lights** inside Houdini with a single click.
 - Config flags to enable / disable features easily  
 - Auto install for lib needed
 - offline version no internet needed
+- Rotation and intensity sliders for HDRI adjustment in Houdini
 
 > Hover zoom preview is planned but **not fully implemented yet**.
 
@@ -142,7 +143,7 @@ Mohamed Qatary
 ## 📄 License
 
 HDRI Image Browser
-Version 1.2
+Version 1.3
 
 © 2026 Mohamed Emad ElDin Mostafa 
 
