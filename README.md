@@ -121,6 +121,8 @@ ENABLE_MULTITHREADING = True
 
 ## 🧠 Ideas (Todo)
 
+- Multi-folder HDRI paths
+- Cache path for HDRI files
 - HDRI rotation slider  
 - Intensity slider  
 - Fetch HDRIs from Open Images API  
