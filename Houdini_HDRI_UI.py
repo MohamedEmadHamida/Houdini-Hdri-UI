@@ -248,11 +248,12 @@ class AnimatedCard(QtWidgets.QWidget):
 # ==================================================
 class ClickableLabel(QtWidgets.QLabel):
 
-    def __init__(self, path, parent=None):
+    def __init__(self, path, parent=None, browser=None):
         super().__init__(parent)
         self.path = path
         self.zoomed = False
         self.original_pixmap = None
+        self.browser = browser  # Reference to EXRBrowser
 
         self.setCursor(QtCore.Qt.PointingHandCursor)
         self.setStyleSheet("""
@@ -327,28 +328,61 @@ class ClickableLabel(QtWidgets.QLabel):
 
     @time_test
     def _apply_env_light(self):
-        obj = hou.node("/obj")
-        if not obj:
+        if not self.browser:
             return
+        
+        # Determine current context (pinned or actual)
+        context = self.browser.pinned_context if self.browser.pinned_context else self.browser._get_current_context()[0]
+        
+        try:
+            if context == "STAGE":
+                # Solaris STAGE - use domelight
+                dome = hou.node('/stage/domelight1')
+                if dome is None:
+                    dome = hou.node('/stage').createNode('domelight', 'domelight1')
+                
+                # Set texture file path
+                texture_parm = hou.parm('/stage/domelight1/xn__inputstexturefile_r3ah')
+                if texture_parm:
+                    texture_parm.set(self.path)
+                
+                if ENABLE_TOOLTIPS:
+                    QtWidgets.QToolTip.showText(
+                        QtGui.QCursor.pos(),
+                        "✓ STAGE Dome Light Updated"
+                    )
+            
+            else:  # OBJ context
+                # Object level - use envlight (original code)
+                obj = hou.node("/obj")
+                if not obj:
+                    return
 
-        env = next(
-            (n for n in obj.children() if n.type().name() == "envlight"),
-            None
-        )
+                env = next(
+                    (n for n in obj.children() if n.type().name() == "envlight"),
+                    None
+                )
 
-        if env is None:
-            env = obj.createNode("envlight", "HDRI_Environment_Light")
-            env.moveToGoodPosition()
+                if env is None:
+                    env = obj.createNode("envlight", "HDRI_Environment_Light")
+                    env.moveToGoodPosition()
 
-        parm = env.parm("env_map")
-        if parm:
-            parm.set(self.path)
+                parm = env.parm("env_map")
+                if parm:
+                    parm.set(self.path)
 
-        if ENABLE_TOOLTIPS:
-            QtWidgets.QToolTip.showText(
-                QtGui.QCursor.pos(),
-                "✓ Environment Light Updated"
-            )
+                if ENABLE_TOOLTIPS:
+                    QtWidgets.QToolTip.showText(
+                        QtGui.QCursor.pos(),
+                        "✓ Environment Light Updated"
+                    )
+        except Exception as e:
+            if ENABLE_TOOLTIPS:
+                QtWidgets.QToolTip.showText(
+                    QtGui.QCursor.pos(),
+                    f"⚠ Error: {str(e)[:30]}"
+                )
+            print(f"Error applying env light: {e}")
 
 
 # ==================================================
@@ -386,6 +420,30 @@ class PulsingLabel(QtWidgets.QLabel):
 
 
 # ==================================================
+# Clickable Context Label
+# ==================================================
+class ClickableContextLabel(QtWidgets.QLabel):
+    """Clickable label for copying current context path"""
+    
+    path_ready = QtCore.Signal(str)  # Emits the path to copy
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_path = ""
+        self.setCursor(QtCore.Qt.PointingHandCursor)
+    
+    def set_path(self, path):
+        """Set the path that will be copied when clicked"""
+        self.current_path = path
+    
+    def mousePressEvent(self, event):
+        """Copy path to clipboard on click"""
+        if event.button() == QtCore.Qt.LeftButton and self.current_path:
+            self.path_ready.emit(self.current_path)
+        super().mousePressEvent(event)
+
+
+# ==================================================
 # End Of Pulse Animation
 # ==================================================
 
@@ -417,6 +475,16 @@ class EXRBrowser(QtWidgets.QWidget):
         self.card_data = {}
         self.loaded_count = 0
         self.total_count = 0
+        
+        # Status indicator for OBJ/STAGE context
+        self.context_label = None
+        self.context_timer = QtCore.QTimer(self)
+        self.context_timer.timeout.connect(self._update_context_indicator)
+        self.context_timer.start(500)  # Update every 500ms
+        
+        # Pinned context - stores the selected context when user clicks
+        self.pinned_context = None
+        self.pinned_path = None
 
         self.setStyleSheet("""
             QWidget {
@@ -523,8 +591,31 @@ class EXRBrowser(QtWidgets.QWidget):
             """)
 
         about_button.clicked.connect(self._show_about)
+        
+        # Context indicator (OBJ/STAGE) - Clickable to copy path
+        self.context_label = ClickableContextLabel()
+        self.context_label.setStyleSheet("""
+            QLabel {
+                font-size: 8pt;
+                color: #999;
+                background: #2b2b2b;
+                border: 1px solid #3d3d3d;
+                border-radius: 3px;
+                padding: 2px 6px;
+                min-width: 70px;
+            }
+            QLabel:hover {
+                background: #333333;
+                border-color: #0078d4;
+            }
+        """)
+        self.context_label.setText("⚪ N/A")
+        self.context_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.context_label.setToolTip("Click to pin/unpin current context")
+        self.context_label.path_ready.connect(self._copy_context_path)
 
         header_layout.addWidget(header)
+        header_layout.addWidget(self.context_label)
         header_layout.addStretch()
         header_layout.addWidget(about_button)
 
@@ -783,20 +874,31 @@ Built with passion for the Houdini community 🤍
         
         # Apply intensity to Houdini environment light
         if ENABLE_HOUDINI:
+            # Determine current context (pinned or actual)
+            context = self.pinned_context if self.pinned_context else self._get_current_context()[0]
+            
             try:
-                obj = hou.node("/obj")
-                if obj:
-                    env = next(
-                        (n for n in obj.children() if n.type().name() == "envlight"),
-                        None
-                    )
-                    
-                    if env:
-                        # Convert slider value (0-10) to intensity multiplier (0.0-2.0)
-                        intensity_value = value / 5.0  # 1 = 0.2, 5 = 1.0, 10 = 2.0
-                        intensity_parm = env.parm("light_intensity")
-                        if intensity_parm:
-                            intensity_parm.set(intensity_value)
+                if context == "STAGE":
+                    # Solaris STAGE - use domelight intensity parameter
+                    intensity_parm = hou.parm('/stage/domelight1/xn__inputsintensity_i0a')
+                    if intensity_parm:
+                        intensity_value = value / 5.0  # Convert to 0.0-2.0 range
+                        intensity_parm.set(intensity_value)
+                
+                else:  # OBJ context
+                    # Object level envlight
+                    obj = hou.node("/obj")
+                    if obj:
+                        env = next(
+                            (n for n in obj.children() if n.type().name() == "envlight"),
+                            None
+                        )
+                        
+                        if env:
+                            intensity_value = value / 5.0  # 1 = 0.2, 5 = 1.0, 10 = 2.0
+                            intensity_parm = env.parm("light_intensity")
+                            if intensity_parm:
+                                intensity_parm.set(intensity_value)
             except Exception as e:
                 print(f"Error setting light intensity: {e}")
 
@@ -807,21 +909,131 @@ Built with passion for the Houdini community 🤍
         
         # Apply rotation to Houdini environment light
         if ENABLE_HOUDINI:
+            # Determine current context (pinned or actual)
+            context = self.pinned_context if self.pinned_context else self._get_current_context()[0]
+            
             try:
-                obj = hou.node("/obj")
-                if obj:
-                    env = next(
-                        (n for n in obj.children() if n.type().name() == "envlight"),
-                        None
-                    )
-                    
-                    if env:
-                        # Set rotation around Y axis (common for HDRI positioning)
-                        ry_parm = env.parm("ry")
-                        if ry_parm:
-                            ry_parm.set(value)
+                if context == "STAGE":
+                    # Solaris STAGE - use domelight rotation parameter (r tuple)
+                    rot_parm = hou.parmTuple('/stage/domelight1/r')
+                    if rot_parm:
+                        # Set rotation around Y axis (index 1)
+                        current_rot = rot_parm.eval()
+                        new_rot = (current_rot[0], value, current_rot[2])
+                        rot_parm.set(new_rot)
+                
+                else:  # OBJ context
+                    # Object level envlight
+                    obj = hou.node("/obj")
+                    if obj:
+                        env = next(
+                            (n for n in obj.children() if n.type().name() == "envlight"),
+                            None
+                        )
+                        
+                        if env:
+                            # Set rotation around Y axis (common for HDRI positioning)
+                            ry_parm = env.parm("ry")
+                            if ry_parm:
+                                ry_parm.set(value)
             except Exception as e:
                 print(f"Error setting light rotation: {e}")
+
+    def _get_current_context(self):
+        """Get current Houdini context (OBJ or STAGE) using NetworkEditor"""
+        if not ENABLE_HOUDINI:
+            return "N/A", ""
+        
+        try:
+            # Get the active Network Editor pane
+            current_pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+            
+            if current_pane is None:
+                return "No Editor", ""
+            
+            # Get the current path from the active pane
+            current_path = current_pane.pwd().path()
+            
+            # Store the path in the label for copying
+            self.context_label.set_path(current_path)
+            
+            if current_path.startswith("/stage"):
+                return "STAGE", current_path
+            elif current_path.startswith("/obj"):
+                return "OBJ", current_path
+            else:
+                context_name = current_path.split("/")[1].upper() if current_path != "/" else "Root"
+                return context_name, current_path
+                
+        except Exception as e:
+            return "Error", ""
+    
+    def _update_context_indicator(self):
+        """Update the context indicator label - shows pinned or current context"""
+        if self.context_label:
+            # If context is pinned, show the pinned context
+            if self.pinned_context:
+                context = self.pinned_context
+                icon = "📌"  # Pin icon for pinned context
+                color = "#ff9800"  # Orange for pinned
+            else:
+                # Otherwise show current context
+                context, _ = self._get_current_context()
+                
+                if context == "OBJ":
+                    color = "#4caf50"  # Green
+                    icon = "🟩"
+                elif context == "STAGE":
+                    color = "#2196f3"  # Blue
+                    icon = "🟦"
+                else:
+                    color = "#999"  # Gray
+                    icon = "⚪"
+            
+            self.context_label.setText(f"{icon} {context}")
+            self.context_label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 8pt;
+                    color: {color};
+                    background: #2b2b2b;
+                    border: 1px solid #3d3d3d;
+                    border-radius: 3px;
+                    padding: 2px 6px;
+                    min-width: 70px;
+                    font-weight: bold;
+                }}
+                QLabel:hover {{
+                    background: #333333;
+                    border-color: {color};
+                }}
+            """)
+    
+    def _copy_context_path(self, path):
+        """Pin/unpin the current context when clicked"""
+        if self.pinned_context:
+            # If already pinned, unpin it
+            self.pinned_context = None
+            self.pinned_path = None
+            
+            if ENABLE_TOOLTIPS:
+                QtWidgets.QToolTip.showText(
+                    QtGui.QCursor.pos(),
+                    "✓ Context unpinned"
+                )
+        else:
+            # Pin the current context
+            current_context, current_path = self._get_current_context()
+            self.pinned_context = current_context
+            self.pinned_path = current_path
+            
+            if ENABLE_TOOLTIPS:
+                QtWidgets.QToolTip.showText(
+                    QtGui.QCursor.pos(),
+                    f"📌 Pinned: {current_context}"
+                )
+        
+        # Update the UI immediately
+        self._update_context_indicator()
 
 
 # ==================================================
@@ -946,7 +1158,7 @@ Built with passion for the Houdini community 🤍
         lay.setSpacing(8)
         lay.setAlignment(QtCore.Qt.AlignCenter)
 
-        thumb = ClickableLabel(path)
+        thumb = ClickableLabel(path, browser=self)
         thumb.setFixedSize(260, 220)  # Full width of card minus padding
         thumb.setAlignment(QtCore.Qt.AlignCenter)
         thumb.setScaledContents(False)  # Keep aspect ratio
