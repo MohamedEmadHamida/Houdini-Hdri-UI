@@ -56,6 +56,8 @@ import os
 import sys
 import time
 import subprocess
+import random
+import hashlib
 
 MAX_THREAD_COUNT = max(1, os.cpu_count() // 2)
 ##MAX_THREAD_COUNT = 4
@@ -463,6 +465,19 @@ class EXRBrowser(QtWidgets.QWidget):
         )
         self.last_folder = self._load_last_folder()
 
+        self.hdri_folders_file = os.path.join(
+            os.path.expanduser("~"), "hdri_folders.txt"
+        )
+        self.hdri_folders = self._load_hdri_folders()
+
+        self.cache_folder_file = os.path.join(
+            os.path.expanduser("~"), "hdri_cache_folder.txt"
+        )
+        self.cache_folder = self._load_cache_folder()
+        if not self.cache_folder:
+            self.cache_folder = os.path.join(os.path.expanduser("~"), ".hdri_browser_cache")
+        os.makedirs(self.cache_folder, exist_ok=True)
+
         # Thread pool for parallel thumbnail loading
         if ENABLE_MULTITHREADING:
             self.thread_pool = QtCore.QThreadPool.globalInstance()
@@ -473,6 +488,7 @@ class EXRBrowser(QtWidgets.QWidget):
 
         # Store references to cards for thread-safe updates
         self.card_data = {}
+        self.loaded_files = set()
         self.loaded_count = 0
         self.total_count = 0
         
@@ -528,7 +544,12 @@ class EXRBrowser(QtWidgets.QWidget):
 
         self._build_ui()
 
-        if self.last_folder and os.path.exists(self.last_folder):
+        # Auto-load configured HDRI folders on startup (prefer settings list)
+        if self.hdri_folders:
+            self.path_le.setText(self.hdri_folders[0])
+            self.load_exrs()
+        elif self.last_folder and os.path.exists(self.last_folder):
+            self.path_le.setText(self.last_folder)
             self.load_exrs(self.last_folder)
 
     @time_test
@@ -537,10 +558,29 @@ class EXRBrowser(QtWidgets.QWidget):
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
 
+        self._build_menu(main_layout)
         self._build_header(main_layout)
         self._build_path_bar(main_layout)
         self._build_controls(main_layout)
         self._build_scroll(main_layout)
+
+    def _build_menu(self, parent):
+        menu_bar = QtWidgets.QMenuBar(self)
+
+        file_menu = menu_bar.addMenu("File")
+        settings_action = QtGui.QAction("Settings", self)
+        settings_action.triggered.connect(self._show_settings_dialog)
+        file_menu.addAction(settings_action)
+
+        load_action = QtGui.QAction("Load Configured HDRI Folders", self)
+        load_action.triggered.connect(self.load_configured_folders)
+        file_menu.addAction(load_action)
+
+        scan_action = QtGui.QAction("Scan for new HDRI files", self)
+        scan_action.triggered.connect(self.scan_for_new_files)
+        file_menu.addAction(scan_action)
+
+        parent.addWidget(menu_bar)
 
 
 # ==================================================
@@ -705,7 +745,33 @@ Built with passion for the Houdini community 🤍
     def _build_controls(self, parent):
         controls_layout = QtWidgets.QHBoxLayout()
         controls_layout.setContentsMargins(0, 0, 0, 15)
-        controls_layout.setSpacing(40)
+        controls_layout.setSpacing(15)
+
+        # Random HDRI Button (Left)
+        random_button = QtWidgets.QPushButton("🎲")
+        random_button.setStyleSheet("""
+            QPushButton {
+                background: #ff6b35;
+                border: none;
+                border-radius: 6px;
+                padding: 5px 10px;
+                color: white;
+                font-weight: bold;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background: #ff8555;
+            }
+            QPushButton:pressed {
+                background: #e55a2b;
+            }
+        """)
+        random_button.setFixedHeight(30)
+        random_button.setFixedWidth(35)
+        random_button.clicked.connect(self.random_hdri)
+        
+        controls_layout.addWidget(random_button)
+        controls_layout.addSpacing(10)
 
         # HDRI Rotation Slider (Left)
         location_layout = QtWidgets.QVBoxLayout()
@@ -830,10 +896,73 @@ Built with passion for the Houdini community 🤍
         intensity_layout.addWidget(self.intensity_slider)
         intensity_layout.addWidget(self.intensity_value_label, alignment=QtCore.Qt.AlignCenter)
 
-        # Add to layout: Rotation on left, Intensity on right
+        # HDRI Exposure Slider (Right)
+        exposure_layout = QtWidgets.QVBoxLayout()
+        exposure_layout.setSpacing(6)
+
+        exposure_label = QtWidgets.QLabel("HDRI Exposure")
+        exposure_label.setStyleSheet("""
+            font-weight: bold; 
+            color: #0078d4;
+            font-size: 10pt;
+        """)
+
+        self.exposure_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal) 
+        self.exposure_slider.setRange(-100, 100)
+        self.exposure_slider.setValue(0)  # 0 = 1.0 exposure
+        self.exposure_slider.setSingleStep(1)
+        self.exposure_slider.setMinimumHeight(20)
+        self.exposure_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #555;
+                height: 6px;
+                background: #333;
+                margin: 2px 0;
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #0078d4;
+                border: 2px solid #005a9e;
+                width: 16px;
+                margin: -3px 0;
+                border-radius: 8px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #1084d8;
+            }
+            QSlider::sub-page:horizontal {
+                background: #0078d4;
+                border-radius: 3px;
+            }
+            QSlider::add-page:horizontal {
+                background: #333;
+                border-radius: 3px;
+            }
+        """)
+
+        self.exposure_value_label = QtWidgets.QLabel("0.0")
+        self.exposure_value_label.setStyleSheet("""
+            color: #ccc; 
+            font-size: 9pt;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 1px 6px;
+            min-width: 35px;
+        """)
+        self.exposure_value_label.setAlignment(QtCore.Qt.AlignCenter)
+
+        self.exposure_slider.valueChanged.connect(self.on_exposure_changed)
+
+        exposure_layout.addWidget(exposure_label)
+        exposure_layout.addWidget(self.exposure_slider)
+        exposure_layout.addWidget(self.exposure_value_label, alignment=QtCore.Qt.AlignCenter)
+
+        # Add to layout: Random on left, Rotation in center, Intensity and Exposure on right
         controls_layout.addLayout(location_layout)
-        controls_layout.addStretch()
         controls_layout.addLayout(intensity_layout)
+        controls_layout.addLayout(exposure_layout)
+        controls_layout.addStretch()
 
         parent.addLayout(controls_layout)
 
@@ -901,6 +1030,122 @@ Built with passion for the Houdini community 🤍
                                 intensity_parm.set(intensity_value)
             except Exception as e:
                 print(f"Error setting light intensity: {e}")
+
+    def on_exposure_changed(self, value):
+        """Handle exposure slider value changes"""
+        # Convert slider value to exposure value (-100 to 100 -> -2.0 to 2.0)
+        exposure_value = value / 50.0
+        
+        # Update the value label
+        self.exposure_value_label.setText(f"{exposure_value:.1f}")
+        
+        # Apply exposure to Houdini environment light
+        if ENABLE_HOUDINI:
+            # Determine current context (pinned or actual)
+            context = self.pinned_context if self.pinned_context else self._get_current_context()[0]
+            
+            try:
+                if context == "STAGE":
+                    # Solaris STAGE - use domelight exposure parameter
+                    exposure_parm = hou.parm('/stage/domelight1/xn__inputsexposure_vya')
+                    if exposure_parm:
+                        exposure_parm.set(exposure_value)
+                
+                else:  # OBJ context
+                    # Object level envlight
+                    obj = hou.node("/obj")
+                    if obj:
+                        env = next(
+                            (n for n in obj.children() if n.type().name() == "envlight"),
+                            None
+                        )
+                        
+                        if env:
+                            exposure_parm = env.parm("light_exposure")
+                            if exposure_parm:
+                                exposure_parm.set(exposure_value)
+            except Exception as e:
+                print(f"Error setting light exposure: {e}")
+
+    def random_hdri(self):
+        """Select a random HDRI and apply it with random rotation"""
+        if not self.card_data:
+            if ENABLE_TOOLTIPS:
+                QtWidgets.QToolTip.showText(
+                    QtGui.QCursor.pos(),
+                    "⚠ No HDRI files loaded"
+                )
+            return
+        
+        # Select random HDRI path
+        random_path = random.choice(list(self.card_data.keys()))
+        
+        # Generate random rotation
+        random_rotation = random.randint(-360, 360)
+        
+        # Update rotation slider and apply
+        self.location_slider.setValue(random_rotation)
+        
+        # Apply the HDRI to Houdini
+        if ENABLE_HOUDINI:
+            # Determine current context (pinned or actual)
+            context = self.pinned_context if self.pinned_context else self._get_current_context()[0]
+            
+            try:
+                if context == "STAGE":
+                    # Solaris STAGE - use domelight
+                    dome = hou.node('/stage/domelight1')
+                    if dome is None:
+                        dome = hou.node('/stage').createNode('domelight', 'domelight1')
+                    
+                    # Set texture file path
+                    texture_parm = hou.parm('/stage/domelight1/xn__inputstexturefile_r3ah')
+                    if texture_parm:
+                        texture_parm.set(random_path)
+                    
+                    # Set random rotation
+                    rot_parm = hou.parmTuple('/stage/domelight1/r')
+                    if rot_parm:
+                        current_rot = rot_parm.eval()
+                        new_rot = (current_rot[0], random_rotation, current_rot[2])
+                        rot_parm.set(new_rot)
+                
+                else:  # OBJ context
+                    # Object level - use envlight (original code)
+                    obj = hou.node("/obj")
+                    if not obj:
+                        return
+
+                    env = next(
+                        (n for n in obj.children() if n.type().name() == "envlight"),
+                        None
+                    )
+
+                    if env is None:
+                        env = obj.createNode("envlight", "HDRI_Environment_Light")
+                        env.moveToGoodPosition()
+
+                    parm = env.parm("env_map")
+                    if parm:
+                        parm.set(random_path)
+
+                    # Set random rotation
+                    ry_parm = env.parm("ry")
+                    if ry_parm:
+                        ry_parm.set(random_rotation)
+                
+                if ENABLE_TOOLTIPS:
+                    QtWidgets.QToolTip.showText(
+                        QtGui.QCursor.pos(),
+                        f"✓ Random HDRI applied with {random_rotation}° rotation"
+                    )
+            except Exception as e:
+                if ENABLE_TOOLTIPS:
+                    QtWidgets.QToolTip.showText(
+                        QtGui.QCursor.pos(),
+                        f"⚠ Error: {str(e)[:30]}"
+                    )
+                print(f"Error applying random HDRI: {e}")
 
     def on_location_changed(self, value):
         """Handle location slider value changes"""
@@ -1070,6 +1315,7 @@ Built with passion for the Houdini community 🤍
             self.thread_pool.clear()
         
         self.card_data.clear()
+        self.loaded_files.clear()
         self.loaded_count = 0
         self.total_count = 0
         
@@ -1095,34 +1341,224 @@ Built with passion for the Houdini community 🤍
         except Exception as e:
             print("Failed to save last folder:", e)
 
+    def _load_hdri_folders(self):
+        if os.path.exists(self.hdri_folders_file):
+            try:
+                with open(self.hdri_folders_file, 'r', encoding='utf-8') as f:
+                    paths = [line.strip() for line in f if line.strip()]
+                return [p for p in paths if os.path.isdir(p)]
+            except Exception as e:
+                print("Failed to load HDRI folders:", e)
+                return []
+        return []
+
+    def _load_cache_folder(self):
+        if os.path.exists(self.cache_folder_file):
+            try:
+                with open(self.cache_folder_file, 'r', encoding='utf-8') as f:
+                    path = f.read().strip()
+                return path if os.path.isdir(path) else ''
+            except Exception as e:
+                print("Failed to load cache folder:", e)
+                return ''
+        return ''
+
+    def _save_cache_folder(self):
+        try:
+            with open(self.cache_folder_file, 'w', encoding='utf-8') as f:
+                f.write(self.cache_folder)
+        except Exception as e:
+            print("Failed to save cache folder:", e)
+
+    def _save_hdri_folders(self):
+        try:
+            with open(self.hdri_folders_file, 'w', encoding='utf-8') as f:
+                for path in self.hdri_folders:
+                    f.write(path + "\n")
+        except Exception as e:
+            print("Failed to save HDRI folders:", e)
+
+    def _show_settings_dialog(self):
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("HDRI Folder Settings")
+        dialog.resize(600, 380)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        info = QtWidgets.QLabel("Add or remove folders to include when loading HDRI files")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        cache_layout = QtWidgets.QHBoxLayout()
+        self.cache_folder_line = QtWidgets.QLineEdit(dialog)
+        self.cache_folder_line.setPlaceholderText("Cache folder path")
+        self.cache_folder_line.setText(self.cache_folder)
+        cache_layout.addWidget(self.cache_folder_line)
+
+        cache_browse_btn = QtWidgets.QPushButton("Browse")
+        cache_browse_btn.clicked.connect(self._settings_browse_cache_folder)
+        cache_layout.addWidget(cache_browse_btn)
+
+        layout.addLayout(cache_layout)
+
+        self.folder_list_widget = QtWidgets.QListWidget(dialog)
+        self.folder_list_widget.addItems(self.hdri_folders)
+        layout.addWidget(self.folder_list_widget)
+
+        add_layout = QtWidgets.QHBoxLayout()
+        self.new_folder_input = QtWidgets.QLineEdit(dialog)
+        self.new_folder_input.setPlaceholderText("Type folder path or browse and then click Add")
+        add_layout.addWidget(self.new_folder_input)
+
+        browse_btn = QtWidgets.QPushButton("Browse")
+        browse_btn.clicked.connect(self._settings_browse_folder)
+        add_layout.addWidget(browse_btn)
+
+        add_btn = QtWidgets.QPushButton("Add")
+        add_btn.clicked.connect(self._settings_add_folder)
+        add_layout.addWidget(add_btn)
+
+        layout.addLayout(add_layout)
+
+        remove_btn = QtWidgets.QPushButton("Remove Selected")
+        remove_btn.clicked.connect(self._settings_remove_selected_folder)
+        layout.addWidget(remove_btn)
+
+        button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        button_box.accepted.connect(lambda: self._settings_apply_and_close(dialog))
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        dialog.exec()
+
+    def _settings_browse_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select HDRI Folder", "", QtWidgets.QFileDialog.ShowDirsOnly)
+        if folder:
+            self.new_folder_input.setText(folder)
+
+    def _settings_add_folder(self):
+        path = self.new_folder_input.text().strip()
+        if path and os.path.isdir(path) and path not in self.hdri_folders:
+            self.hdri_folders.append(path)
+            self.folder_list_widget.addItem(path)
+            self.new_folder_input.clear()
+
+    def _settings_browse_cache_folder(self):
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Cache Folder", "", QtWidgets.QFileDialog.ShowDirsOnly)
+        if folder:
+            self.cache_folder = folder
+            self.cache_folder_line.setText(folder)
+            os.makedirs(self.cache_folder, exist_ok=True)
+
+    def _settings_remove_selected_folder(self):
+        selected = self.folder_list_widget.selectedItems()
+        for item in selected:
+            path = item.text()
+            self.hdri_folders = [p for p in self.hdri_folders if p != path]
+            self.folder_list_widget.takeItem(self.folder_list_widget.row(item))
+
+    def _settings_apply_and_close(self, dialog):
+        self.cache_folder = self.cache_folder_line.text().strip() or self.cache_folder
+        if self.cache_folder and os.path.isdir(self.cache_folder):
+            self._save_cache_folder()
+            os.makedirs(self.cache_folder, exist_ok=True)
+        self._save_hdri_folders()
+        if self.hdri_folders:
+            self.path_le.setText(self.hdri_folders[0])
+            self._save_last_folder(self.hdri_folders[0])
+            self.load_exrs()  # load all configured folders by default
+        dialog.accept()
+
+    def load_configured_folders(self):
+        if not self.hdri_folders:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "No HDRI folders configured",
+                "Please add HDRI folders in Settings first."
+            )
+            return
+
+        first_folder = self.hdri_folders[0]
+        self.path_le.setText(first_folder)
+        self._save_last_folder(first_folder)
+        self.load_exrs()
+
+    def scan_for_new_files(self):
+        check_folder = self.check_folder_line.text().strip() if hasattr(self, 'check_folder_line') else ''
+
+        if check_folder and os.path.isdir(check_folder):
+            self.path_le.setText(check_folder)
+            self.load_exrs(folder=check_folder, incremental=True)
+            return
+
+        if self.path_le.text().strip() and os.path.isdir(self.path_le.text().strip()):
+            self.load_exrs(folder=self.path_le.text().strip(), incremental=True)
+            return
+
+        if self.hdri_folders:
+            # Keep existing entries; load any new files from configured folders.
+            self.load_exrs(incremental=True)
+            return
+
+        QtWidgets.QMessageBox.warning(
+            self,
+            "No valid HDRI folder",
+            "Please select or configure at least one HDRI folder to scan."
+        )
+
     @time_test
-    def load_exrs(self, folder):
-        if not os.path.isdir(folder):
+    def load_exrs(self, folder=None, incremental=False):
+        if folder:
+            candidate_folders = [folder]
+        elif self.hdri_folders:
+            candidate_folders = self.hdri_folders
+        elif self.last_folder:
+            candidate_folders = [self.last_folder]
+        else:
+            candidate_folders = []
+
+        candidate_folders = [f for f in candidate_folders if os.path.isdir(f)]
+
+        if not candidate_folders:
             self.count_label.setText("Invalid folder path")
             self.count_label.setStyleSheet("color: #ff4444; font-style: italic;")
             return
 
-        self.clear()
-        files = [f for f in os.listdir(folder) if f.lower().endswith((".exr", ".hdr"))]
+        if not incremental:
+            self.clear()
 
-        if not files:
+        existing_paths = set(self.card_data.keys())
+        new_files = []
+        for folder_path in candidate_folders:
+            for f in os.listdir(folder_path):
+                if f.lower().endswith((".exr", ".hdr")):
+                    full_path = os.path.join(folder_path, f)
+                    if full_path not in existing_paths:
+                        new_files.append((folder_path, f))
+
+        if not new_files and not existing_paths:
             self.count_label.setText("No HDRI files found")
             self.count_label.setStyleSheet("color: #ff9800; font-style: italic;")
             return
 
-        self.total_count = len(files)
-        self.loaded_count = 0
-        
+        if not new_files:
+            self.count_label.setText("No new HDRI files found")
+            self.count_label.setStyleSheet("color: #4caf50; font-style: italic;")
+            return
+
+        self.total_count = len(existing_paths) + len(new_files)
+        self.loaded_count = len(existing_paths)
+
         self.count_label.setText(
-            f"Loading 0/{self.total_count} HDRI files..."
+            f"Loading {self.loaded_count}/{self.total_count} HDRI files..."
         )
         self.count_label.setStyleSheet(
             "color: #ffa500; font-style: italic; font-weight: bold;"
         )
 
         row = col = 0
-        for f in files:
-            full_path = os.path.join(folder, f)
+        for folder_path, f in new_files:
+            full_path = os.path.join(folder_path, f)
             card = self._build_card(full_path, f)
             self.grid.addWidget(card, row, col)
 
@@ -1187,27 +1623,45 @@ Built with passion for the Houdini community 🤍
         name.setToolTip(path)
         name.setMaximumWidth(220)
 
-        info = QtWidgets.QLabel("Loading...")
-        info.setAlignment(QtCore.Qt.AlignCenter)
-        info.setStyleSheet("color: #888; font-size: 9pt;")
-
         lay.addWidget(thumb, 0, QtCore.Qt.AlignCenter)
         lay.addWidget(name, 0, QtCore.Qt.AlignCenter)
-        lay.addWidget(info, 0, QtCore.Qt.AlignCenter)
 
         # Store references including the animated card and loading label
         self.card_data[path] = {
             'card': box,
             'label': thumb,
-            'info': info,
             'loading_label': loading_label
         }
+        self.loaded_files.add(path)
+
+        # Try to load from cache first
+        cache_pixmap = self._load_cached_thumbnail(path)
+        if cache_pixmap is not None:
+            loading_label.stop_pulse()
+            loading_label.deleteLater()
+            thumb.setPixmap(cache_pixmap)
+            thumb.setStyleSheet("""
+                QLabel {
+                    background: #2b2b2b;
+                    border: 2px solid #3d3d3d;
+                    border-radius: 8px;
+                }
+                QLabel:hover {
+                    border-color: #0078d4;
+                }
+            """)
+            #info.setText("Loaded")
+            #info.setStyleSheet("color: #4caf50; font-size: 9pt; font-weight: bold;")
+            self.loaded_count += 1
+            box.start_animation()
+            self._update_progress()
+            return box
 
         # Load thumbnail using threading or sync
         if ENABLE_MULTITHREADING and self.thread_pool:
             self._load_thumbnail_async(path)
         else:
-            self._load_thumbnail_sync(path, thumb, info, loading_label, box)
+            self._load_thumbnail_sync(path, thumb, None, loading_label, box)
 
         return box
 
@@ -1227,6 +1681,30 @@ Built with passion for the Houdini community 🤍
         worker.signals.finished.connect(self._on_thumbnail_loaded)
         worker.signals.error.connect(self._on_thumbnail_error)
         self.thread_pool.start(worker)
+
+    def _cache_thumbnail(self, path, pixmap):
+        if not self.cache_folder:
+            return
+
+        os.makedirs(self.cache_folder, exist_ok=True)
+        hash_name = hashlib.md5(path.encode('utf-8')).hexdigest()
+        cache_file = os.path.join(self.cache_folder, f"{hash_name}.png")
+        try:
+            pixmap.save(cache_file, "PNG")
+        except Exception as e:
+            print("Failed to save cached thumbnail:", e)
+
+    def _load_cached_thumbnail(self, path):
+        if not self.cache_folder:
+            return None
+
+        hash_name = hashlib.md5(path.encode('utf-8')).hexdigest()
+        cache_file = os.path.join(self.cache_folder, f"{hash_name}.png")
+        if os.path.exists(cache_file):
+            pixmap = QtGui.QPixmap(cache_file)
+            if not pixmap.isNull():
+                return pixmap
+        return None
 
     @QtCore.Slot(str, object, str)
     def _on_thumbnail_loaded(self, path, pixmap, info_text):
@@ -1250,14 +1728,16 @@ Built with passion for the Houdini community 🤍
                     border-color: #0078d4;
                 }
             """)
-            card['info'].setText(info_text)
-            card['info'].setStyleSheet("color: #4caf50; font-size: 9pt; font-weight: bold;")
-            
+            if 'info' in card:
+                card['info'].setText(info_text)
+                card['info'].setStyleSheet("color: #4caf50; font-size: 9pt; font-weight: bold;")
+
+            self._cache_thumbnail(path, pixmap)
             self.loaded_count += 1
-            
+
             # Start card animation immediately (no delay)
             card['card'].start_animation()
-            
+
             self._update_progress()
 
     @QtCore.Slot(str, str)
@@ -1279,8 +1759,9 @@ Built with passion for the Houdini community 🤍
                     color: #ff6b6b;
                 }
             """)
-            card['info'].setText(error_msg)
-            card['info'].setStyleSheet("color: #ff6b6b; font-size: 8pt;")
+            if 'info' in card:
+                card['info'].setText(error_msg)
+                card['info'].setStyleSheet("color: #ff6b6b; font-size: 8pt;")
             
             self.loaded_count += 1
             
@@ -1304,7 +1785,7 @@ Built with passion for the Houdini community 🤍
             )
 
     @time_test
-    def _load_thumbnail_sync(self, path, label, info_label, loading_label, card):
+    def _load_thumbnail_sync(self, path, label, info_label=None, loading_label=None, card=None):
         """Synchronous thumbnail loading (fallback)"""
         try:
             inp = oiio.ImageInput.open(path)
@@ -1345,8 +1826,9 @@ Built with passion for the Houdini community 🤍
             )
             
             # Stop pulsing and remove loading label
-            loading_label.stop_pulse()
-            loading_label.deleteLater()
+            if loading_label is not None:
+                loading_label.stop_pulse()
+                loading_label.deleteLater()
             
             label.setPixmap(pix)
             label.setStyleSheet("""
@@ -1360,14 +1842,22 @@ Built with passion for the Houdini community 🤍
                 }
             """)
 
-            info_label.setText(f"{spec.width}×{spec.height} · {spec.nchannels}ch")
-            info_label.setStyleSheet("color: #4caf50; font-size: 9pt; font-weight: bold;")
-            
+            if info_label is not None:
+                info_label.setText(f"{spec.width}×{spec.height} · {spec.nchannels}ch")
+                info_label.setStyleSheet("color: #4caf50; font-size: 9pt; font-weight: bold;")
+
+            self._cache_thumbnail(path, QtGui.QPixmap.fromImage(qimg).scaled(
+                220, 220,
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation
+            ))
+
             self.loaded_count += 1
-            
+
             # Start card animation immediately
-            card.start_animation()
-            
+            if card is not None:
+                card.start_animation()
+
             self._update_progress()
 
         except Exception as e:

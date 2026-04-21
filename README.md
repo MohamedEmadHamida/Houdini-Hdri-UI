@@ -1,4 +1,4 @@
-# EXR Browser for Houdini V1.3
+# EXR Browser for Houdini V2
 
 A modern, fast, and artist-friendly **EXR / HDRI browser** built with **Python + PySide6**,  
 designed specifically for **SideFX Houdini** users.
@@ -19,9 +19,14 @@ instantly as **Environment Lights** inside Houdini with a single click.
 - Subtle card fade-in animation  
 - Optional time-test decorator for performance debugging  
 - Config flags to enable / disable features easily  
-- Auto install for lib needed
-- offline version no internet needed
+- Auto install for required libraries
+- no internet needed
 - Rotation and intensity sliders for HDRI adjustment in Houdini
+- Multi-folder HDRI paths
+- Cache path for HDRI files
+- Solaris (Stage) HDRI support
+- Random HDRI Selection 
+
 
 > Hover zoom preview is planned but **not fully implemented yet**.
 
@@ -61,13 +66,16 @@ pip install PySide6 numpy OpenImageIO
 
 
 
-### Option 1: Run Inside Houdini (Direct)
+### Option 1: Install as Houdini Shelf Tool Copy Code Simple method
 
 1. Open **Houdini**
-2. Open **Python Shell**
-3. Paste and run the EXR Browser script
-4. Thumbnails load automatically (multi-threaded)
-5. Click any thumbnail to apply it as an **Environment Light** in Houdini
+2. Go to **Shelves → New Tool**
+3. Set a name, label, and icon (optional)
+4. In the **Script** section:
+   - Set the language to **Python**
+   - Paste the full EXR Browser script code (Houdini_HDRI_UI.py)
+5. Click **Apply** or **Accept**
+
 
 If no Environment Light exists, the tool will create one automatically.
 
@@ -81,16 +89,12 @@ You can add the EXR Browser as a **Shelf Tool** inside Houdini for quick access.
 2. Go to **Shelves → New Tool**
 3. Set a name, label, and icon (optional)
 4. In the **Script** section:
+   - Paste 
    - Set the language to **Python**
    - Paste the full EXR Browser script code
 5. Click **Apply** or **Accept**
 
 You can now launch the EXR Browser directly from the Houdini shelf with one click.
-
-> Tip:  
-> For easier updates, you can place the script in a shared tools folder and  
-> import it inside the shelf tool instead of pasting the full code.
-
 ---
 
 ### Option 3: Run Without Houdini (Standalone)
@@ -121,18 +125,14 @@ ENABLE_MULTITHREADING = True
 
 ## 🧠 Ideas (Todo)
 
-- Multi-folder HDRI paths
-- Cache path for HDRI files
-- HDRI rotation slider  
+
 - Intensity slider  
 - Fetch HDRIs from Open Images API  
 - Shared HDRI libraries  
 - Auto-download HDRI collections  
-- Smart filters (indoor / outdoor / studio)  
-- Karma HDRI preview  
+- Smart filters (indoor / outdoor / studio)    
 - Premade lighting setups  
 - Multiple HDRI render tests  
-- Random HDRI rotation and batch renders  
 
 ---
 
@@ -145,7 +145,7 @@ Mohamed Qatary
 ## 📄 License
 
 HDRI Image Browser
-Version 1.3
+Version 2
 
 © 2026 Mohamed Emad ElDin Mostafa 
 
