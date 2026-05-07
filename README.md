@@ -37,6 +37,8 @@ instantly as **Environment Lights** inside Houdini with a single click.
 
 - ![image](images/ui_main.png)
 - ![image](images/ui_loaded.png)
+- ![image](images/SetupUI.png)
+
 
 ---
 ## 🎥 Demo 
