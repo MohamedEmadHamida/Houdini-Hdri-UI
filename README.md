@@ -66,6 +66,7 @@ pip install PySide6 numpy OpenImageIO
 
 [Click here to view the installation video](https://youtu.be/Lu9vJuhpFS4)
 
+- ![Demo](images/easyinstallForGIF.gif)
 
 
 ### Option 1: Install as Houdini Shelf Tool Copy Code Simple method
